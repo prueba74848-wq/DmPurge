@@ -1,7 +1,8 @@
 {
-  "name": "Purge Test",
-  "description": "Minimal test plugin",
+  "name": "DM Purge",
+  "description": "Delete all your messages in a DM by channel ID (/purgedm or plugin settings).",
   "authors": [{ "name": "you" }],
   "main": "index.js",
-  "hash": "9e45f8700b1e0276ff44e21c13aa95d3345a59aa259206cee0fe54dcac24c9b2"
+  "hash": "bd5f5520051ba59b89707408d054376eb74f4ed1100fb8e6ec4fc1efdb0dc329",
+  "vendetta": { "icon": "ic_message_delete" }
 }
