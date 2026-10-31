@@ -1,16 +1,13 @@
 (function () {
-  const { findByProps, findByStoreName } = vendetta.metro;
-  const { React, ReactNative } = vendetta.metro.common;
-  const { Forms } = vendetta.ui.components;
-  const { showToast } = vendetta.ui.toasts;
-  const { registerCommand } = vendetta.commands;
-  const { getAssetIDByName } = vendetta.ui.assets;
+  const v = vendetta;
+  const metro = v.metro;
+  const React = metro.common.React;
+  const RN = metro.common.ReactNative;
+
+  const findByProps = metro.findByProps;
+  const findByStoreName = metro.findByStoreName;
 
   const RestAPI = findByProps("getAPIBaseURL", "get");
-  const UserStore = findByStoreName("UserStore");
-  const ChannelStore = findByStoreName("ChannelStore");
-
-  const { FormSection, FormInput, FormRow, FormText } = Forms;
 
   // Message types a user can delete: DEFAULT, REPLY, CHAT_INPUT_COMMAND, CONTEXT_MENU_COMMAND
   const DELETABLE = [0, 19, 20, 23];
@@ -19,6 +16,16 @@
   let running = false;
   let stopRequested = false;
   const unregister = [];
+
+  function toast(text, icon) {
+    try {
+      let id;
+      try {
+        id = v.ui.assets.getAssetIDByName(icon);
+      } catch (e) {}
+      v.ui.toasts.showToast(text, id);
+    } catch (e) {}
+  }
 
   async function api(method, url) {
     for (let attempt = 0; attempt < 6; attempt++) {
@@ -40,7 +47,10 @@
     if (running) throw new Error("Already running");
     if (!/^\d{17,20}$/.test(channelId)) throw new Error("Invalid channel ID");
 
-    const channel = ChannelStore.getChannel(channelId);
+    const UserStore = findByStoreName("UserStore");
+    const ChannelStore = findByStoreName("ChannelStore");
+
+    const channel = ChannelStore && ChannelStore.getChannel(channelId);
     if (channel && channel.type !== 1 && channel.type !== 3) {
       throw new Error("That channel is not a DM");
     }
@@ -55,26 +65,26 @@
     try {
       while (!stopRequested) {
         const url =
-          `/channels/${channelId}/messages?limit=100` +
-          (before ? `&before=${before}` : "");
+          "/channels/" + channelId + "/messages?limit=100" +
+          (before ? "&before=" + before : "");
         const res = await api("get", url);
         const msgs = res.body || [];
         if (!msgs.length) break;
         before = msgs[msgs.length - 1].id;
 
         const mine = msgs.filter(
-          (m) => m.author.id === me && DELETABLE.includes(m.type)
+          (m) => m.author.id === me && DELETABLE.indexOf(m.type) !== -1
         );
 
         for (const m of mine) {
           if (stopRequested) break;
           try {
-            await api("del", `/channels/${channelId}/messages/${m.id}`);
+            await api("del", "/channels/" + channelId + "/messages/" + m.id);
             deleted++;
           } catch (e) {
             failed++;
           }
-          onProgress && onProgress(deleted, failed);
+          if (onProgress) onProgress(deleted, failed);
           await sleep(350);
         }
 
@@ -83,18 +93,36 @@
     } finally {
       running = false;
     }
-    return { deleted, failed, stopped: stopRequested };
+    return { deleted: deleted, failed: failed, stopped: stopRequested };
   }
 
+  // Settings page built only from react-native primitives (no Forms dependency)
   function Settings() {
     const [channelId, setChannelId] = React.useState("");
     const [status, setStatus] = React.useState("Idle");
+    const h = React.createElement;
+
+    const button = (label, onPress, color) =>
+      h(
+        RN.Pressable,
+        {
+          onPress: onPress,
+          style: {
+            backgroundColor: color,
+            padding: 14,
+            borderRadius: 8,
+            marginTop: 12,
+            alignItems: "center",
+          },
+        },
+        h(RN.Text, { style: { color: "#fff", fontWeight: "bold" } }, label)
+      );
 
     const start = () => {
       const id = channelId.trim();
-      ReactNative.Alert.alert(
+      RN.Alert.alert(
         "Delete all your messages?",
-        `This permanently deletes every message you sent in channel ${id}. It cannot be undone.`,
+        "This permanently deletes every message you sent in channel " + id + ". It cannot be undone.",
         [
           { text: "Cancel", style: "cancel" },
           {
@@ -104,11 +132,11 @@
               try {
                 setStatus("Starting...");
                 const r = await purge(id, (d, f) =>
-                  setStatus(`Deleted ${d}` + (f ? `, failed ${f}` : ""))
+                  setStatus("Deleted " + d + (f ? ", failed " + f : ""))
                 );
                 setStatus(
-                  `${r.stopped ? "Stopped" : "Done"}: deleted ${r.deleted}` +
-                    (r.failed ? `, failed ${r.failed}` : "")
+                  (r.stopped ? "Stopped" : "Done") + ": deleted " + r.deleted +
+                    (r.failed ? ", failed " + r.failed : "")
                 );
               } catch (e) {
                 setStatus("Error: " + (e && e.message ? e.message : e));
@@ -119,79 +147,77 @@
       );
     };
 
-    return React.createElement(
-      ReactNative.ScrollView,
-      null,
-      React.createElement(
-        FormSection,
-        { title: "DM Purge", titleStyleType: "no_border" },
-        React.createElement(FormInput, {
-          title: "DM channel ID",
-          placeholder: "e.g. 123456789012345678",
-          value: channelId,
-          onChange: setChannelId,
-          keyboardType: "numeric",
-        }),
-        React.createElement(FormRow, {
-          label: "Delete all my messages in this DM",
-          onPress: start,
-        }),
-        React.createElement(FormRow, {
-          label: "Stop",
-          onPress: () => {
-            stopRequested = true;
-          },
-        }),
-        React.createElement(FormText, { style: { padding: 16 } }, status)
-      )
+    return h(
+      RN.ScrollView,
+      { style: { padding: 16 } },
+      h(RN.Text, { style: { color: "#fff", fontSize: 16, marginBottom: 8 } }, "DM channel ID"),
+      h(RN.TextInput, {
+        value: channelId,
+        onChangeText: setChannelId,
+        placeholder: "123456789012345678",
+        placeholderTextColor: "#888",
+        keyboardType: "numeric",
+        style: {
+          color: "#fff",
+          backgroundColor: "#2b2d31",
+          padding: 12,
+          borderRadius: 8,
+        },
+      }),
+      button("Delete all my messages in this DM", start, "#d83c3e"),
+      button("Stop", () => { stopRequested = true; }, "#4e5058"),
+      h(RN.Text, { style: { color: "#ccc", marginTop: 16 } }, status)
     );
   }
 
   return {
-    onLoad() {
-      unregister.push(
-        registerCommand({
-          name: "purgedm",
-          displayName: "purgedm",
-          description: "Delete all your messages in a DM by channel ID",
-          displayDescription: "Delete all your messages in a DM by channel ID",
-          applicationId: "-1",
-          inputType: 1,
-          type: 1,
-          options: [
-            {
-              name: "channel_id",
-              displayName: "channel_id",
-              description: "ID of the DM channel",
-              displayDescription: "ID of the DM channel",
-              required: true,
-              type: 3,
+    onLoad: function () {
+      try {
+        const reg = v.commands && v.commands.registerCommand;
+        if (!reg) return;
+        unregister.push(
+          reg({
+            name: "purgedm",
+            displayName: "purgedm",
+            description: "Delete all your messages in a DM by channel ID",
+            displayDescription: "Delete all your messages in a DM by channel ID",
+            applicationId: "-1",
+            inputType: 1,
+            type: 1,
+            options: [
+              {
+                name: "channel_id",
+                displayName: "channel_id",
+                description: "ID of the DM channel",
+                displayDescription: "ID of the DM channel",
+                required: true,
+                type: 3,
+              },
+            ],
+            execute: function (args) {
+              const id = String(args[0].value).trim();
+              toast("DM Purge started", "Check");
+              purge(id)
+                .then((r) =>
+                  toast(
+                    "Deleted " + r.deleted + " message(s)" +
+                      (r.failed ? ", " + r.failed + " failed" : ""),
+                    "Check"
+                  )
+                )
+                .catch((e) =>
+                  toast("DM Purge: " + (e && e.message ? e.message : e), "Small")
+                );
             },
-          ],
-          execute(args) {
-            const id = String(args[0].value).trim();
-            purge(id)
-              .then((r) =>
-                showToast(
-                  `Deleted ${r.deleted} message(s)` +
-                    (r.failed ? `, ${r.failed} failed` : ""),
-                  getAssetIDByName("Check")
-                )
-              )
-              .catch((e) =>
-                showToast(
-                  "DM Purge: " + (e && e.message ? e.message : e),
-                  getAssetIDByName("Small")
-                )
-              );
-            showToast("DM Purge started", getAssetIDByName("Check"));
-          },
-        })
-      );
+          })
+        );
+      } catch (e) {
+        toast("DM Purge: command not registered (" + (e && e.message) + ")", "Small");
+      }
     },
-    onUnload() {
+    onUnload: function () {
       stopRequested = true;
-      unregister.forEach((u) => u());
+      unregister.forEach((u) => { try { u(); } catch (e) {} });
       unregister.length = 0;
     },
     settings: Settings,
