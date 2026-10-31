@@ -3,6 +3,6 @@
   "description": "Delete all your messages in a DM by channel ID (/purgedm or plugin settings).",
   "authors": [{ "name": "you" }],
   "main": "index.js",
-  "hash": "7c9d8d8d8de2df6888aac1d10c51a884853005d20325b7cd52319e194cffef1e",
+  "hash": "16d14d8e356240f374c0ee63b248a2fa54d1ea1e2cc160a1c94eac997559254b",
   "vendetta": { "icon": "ic_message_delete" }
 }

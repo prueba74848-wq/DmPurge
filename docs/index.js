@@ -1,13 +1,13 @@
 (function () {
   const v = vendetta;
-  const metro = v.metro;
-  const React = metro.common.React;
-  const RN = metro.common.ReactNative;
-
-  const findByProps = metro.findByProps;
-  const findByStoreName = metro.findByStoreName;
-
-  const RestAPI = findByProps("getAPIBaseURL", "get");
+  const lazy = {};
+  const get = (k, fn) => (k in lazy ? lazy[k] : (lazy[k] = fn()));
+  const R = () => get("React", () => v.metro.common.React);
+  const RNm = () => get("RN", () => v.metro.common.ReactNative);
+  const findByStoreName = (n) => v.metro.findByStoreName(n);
+  const RestAPI = new Proxy({}, {
+    get: (_, k) => get("Rest", () => v.metro.findByProps("getAPIBaseURL", "get"))[k],
+  });
 
   // Message types a user can delete: DEFAULT, REPLY, CHAT_INPUT_COMMAND, CONTEXT_MENU_COMMAND
   const DELETABLE = [0, 19, 20, 23];
@@ -98,6 +98,8 @@
 
   // Settings page built only from react-native primitives (no Forms dependency)
   function Settings() {
+    const React = R();
+    const RN = RNm();
     const [channelId, setChannelId] = React.useState("");
     const [status, setStatus] = React.useState("Idle");
     const h = React.createElement;
